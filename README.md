@@ -1,0 +1,2 @@
+# firespark
+Boilerplate generator
