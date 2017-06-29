@@ -1,4 +1,4 @@
 # Firespark
-Firespark is a boilerplate generator. It creates a boilerplate based on your projects needs. Firespark also creates a working environment, to even further kickstart your project.
+Firespark is environment that allows the creation of static websites in no time.
 
 Firespark utilises Sass, ES7+ and Pug to enable rapid development of your next web app or website.

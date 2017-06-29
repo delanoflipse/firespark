@@ -1,0 +1,11 @@
+sass:
+    entries: 
+        sass/index.scss: index.css
+js:
+    entries: 
+        js/index.js: index.js
+pug:
+    entries:
+        views/pages/index.pug: index.html
+        views/pages/404.pug: 404.html
+    data:
