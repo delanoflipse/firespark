@@ -2,10 +2,10 @@
   "name": "firespark",
   "version": "1.0.0",
   "description": "Firespark is ES7, Sass and Pug boilerplate environment for creating static websites",
-  "main": "gulpfile.js",
+  "main": "index.js",
   "scripts": {
-    "start": "gulp",
-    "build": "gulp build"
+    "start": "node_modules/.bin/webpack-dev-server",
+    "build": "node_modules/.bin/webpack"
   },
   "dependencies": {
     "autoprefixer": "^7.1.1",
