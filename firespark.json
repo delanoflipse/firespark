@@ -1,0 +1,12 @@
+{
+    "js": "src/js/*.js",
+
+    "sass": "src/sass/*.scss",
+
+    "html": "src/html/*.html",
+
+    "static": {
+        "input": "static",
+        "output": "/"
+    }
+}
