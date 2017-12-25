@@ -23,3 +23,5 @@ Create a distribution version for production using
 ```sh
 $ npm run build
 ```
+
+This (new) setup took big influences from (jefvlamings' boilerplate-gulp-webpack-es6)[https://github.com/jefvlamings/boilerplate-gulp-webpack-es6]
