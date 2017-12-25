@@ -1,21 +1,25 @@
-# Boilerplate for Gulp + Webpack + HAML + SASS
-Minimal setup for building modular javascript apps with ES6, HAML and SASS
-- HAML compilation to HTML
-- ES6 compilation to JS
-- SASS compilation to CSS
-- Separate build directory for easy deployments
-- Uglify to obscure and minify javascript 
-- Webpack to bundle modules
-- Gulp watch for incremental builds (compiling on save)
-- Growl notifications
+# Firespark
+Firespark is a static website creation setup using ES2016+, SASS, Webpack, Gulp and live-reload.
 
+## Features
+- Modern javascript(ES7)
+- Javascript bundling
+- Styling preprocessing
+- Live reload when editing source
+- Production building
 
 ## Getting started
 Install node modules with `npm`
 ```sh
 $ npm install
 ```
-Compile and watch assets with `gulp`
+
+Use in development mode using
 ```sh
-$ gulp
+$ npm start
+```
+
+Create a distribution version for production using
+```sh
+$ npm run build
 ```
