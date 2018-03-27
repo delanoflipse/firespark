@@ -1,9 +1,13 @@
 // Requirements
+const JSON5 = require('json5')
+const fs = require('fs')
 const gulp = require('gulp')
 const liveServer = require('live-server')
 const gutil = require("gulp-util")
 const sass = require('gulp-sass')
 const uglify = require('gulp-uglify')
+const plumber = require("gulp-plumber")
+const htmlmin = require("gulp-htmlmin")
 const notify = require("gulp-notify")
 const sourcemaps = require('gulp-sourcemaps')
 const named = require('vinyl-named')
@@ -11,12 +15,8 @@ const webpack = require("webpack")
 const path = require("path")
 const webpackConfigGenerator = require("./webpack.config.js")
 const webpackStream = require("webpack-stream")
-const firesparkConfig = require("./firespark.json")
 
-if (!firesparkConfig.js || !firesparkConfig.sass || !firesparkConfig.html) {
-    console.error("Fatal error: invalid config!")
-    process.exit()
-}
+const firesparkConfig = parseConfig()
 
 let targetFolder = 'build'
 let webpackConfig
@@ -32,13 +32,16 @@ gulp.task('static', function () {
 
 // HTML
 gulp.task('html', function () {
-    return gulp.src("src/*.html")
+    return gulp.src(firesparkConfig.src.html.input)
+        .pipe(plumber())
+        .pipe(htmlmin(firesparkConfig.src.html.config))
         .pipe(gulp.dest(targetFolder))
 })
 
 // Javascript
 gulp.task("javascript", function() {
-    return gulp.src("src/js/*.js")
+    return gulp.src(firesparkConfig.src.js.input)
+        .pipe(plumber())
         .pipe(named())
         .pipe(webpackStream(webpackConfig, webpack))
         .pipe(gulp.dest(targetFolder))
@@ -46,7 +49,8 @@ gulp.task("javascript", function() {
 
 // Sass
 gulp.task('sass', function () {
-    return gulp.src('./src/sass/*.scss')
+    return gulp.src(firesparkConfig.src.sass.input)
+        .pipe(plumber())
         .pipe(sourcemaps.init())
         .pipe(sass().on('error', sass.logError))
         .pipe(sourcemaps.write('./maps'))
@@ -54,28 +58,27 @@ gulp.task('sass', function () {
 })
 
 gulp.task('watch', function() {
-    gulp.watch("src/**/*.js", ['javascript'])
-    gulp.watch("src/**/*.html", ['html'])
-    gulp.watch("src/**/*.scss", ['sass'])
+    gulp.watch(firesparkConfig.src.js.watch, ['javascript'])
+    gulp.watch(firesparkConfig.src.html.watch, ['html'])
+    gulp.watch(firesparkConfig.src.sass.watch, ['sass'])
     gulp.watch(firesparkConfig.static.input + "/**/*", ['static'])
     
     liveServer.start({
         port: 8080, // Set the server port. Defaults to 8080. 
-        // host: "0.0.0.0", // Set the address to bind to. Defaults to 0.0.0.0 or process.env.IP. 
         root: "build", // Set root directory that's being served. Defaults to cwd. 
         open: true,
     })
 })
 
 gulp.task('setDev', function() {
-    targetFolder = 'build'
+    targetFolder = firesparkConfig.output.build
     webpackConfig = webpackConfigGenerator(false)
 })
 
 gulp.task('dev', ['setDev', 'javascript', 'html', 'sass', 'static', 'watch'])
 
 gulp.task('setProd', function() {
-    targetFolder = 'dist'
+    targetFolder = firesparkConfig.output.distribution
     webpackConfig = webpackConfigGenerator(true)
 })
 
@@ -83,3 +86,8 @@ gulp.task('prod', ['setProd', 'static', 'html', 'javascript', 'sass'])
 
 // Default task
 gulp.task('default', ['dev'])
+
+function parseConfig() {
+    let file = fs.readFileSync(".firespark", { encoding: "UTF-8" }) || ""
+    return JSON5.parse(file)
+}
