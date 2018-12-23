@@ -1,93 +1,107 @@
 // Requirements
-const JSON5 = require('json5')
-const fs = require('fs')
-const gulp = require('gulp')
-const liveServer = require('live-server')
-const gutil = require("gulp-util")
-const sass = require('gulp-sass')
-const uglify = require('gulp-uglify')
-const plumber = require("gulp-plumber")
-const htmlmin = require("gulp-htmlmin")
-const notify = require("gulp-notify")
-const sourcemaps = require('gulp-sourcemaps')
-const named = require('vinyl-named')
-const webpack = require("webpack")
-const path = require("path")
-const webpackConfigGenerator = require("./webpack.config.js")
-const webpackStream = require("webpack-stream")
+const nodemon = require('gulp-nodemon');
+const proxy = require('express-http-proxy');
+const gulp = require('gulp');
+const express = require('express');
+const sass = require('gulp-sass');
+const plumber = require("gulp-plumber");
+const htmlmin = require("gulp-htmlmin");
+const sourcemaps = require('gulp-sourcemaps');
+const named = require('vinyl-named');
+const webpack = require("webpack");
+const path = require("path");
+const webpackStream = require("webpack-stream");
 
-const firesparkConfig = parseConfig()
+const configGen = require('./.firespark');
+let config = {};
 
-let targetFolder = 'build'
-let webpackConfig
-const basePath = path.resolve(__dirname, "src")
-
-let server = null
+let targetFolder = 'build';
 
 // STATIC
 gulp.task('static', function () {
-    return gulp.src(firesparkConfig.static.input + "/**/*")
-        .pipe(gulp.dest(targetFolder + "/" + firesparkConfig.static.output))
-})
+    return gulp.src(config.static.input + "/**/*")
+        .pipe(gulp.dest(targetFolder + "/" + config.static.output))
+});
 
 // HTML
 gulp.task('html', function () {
-    return gulp.src(firesparkConfig.src.html.input)
+    return gulp.src(config.src.html.input)
         .pipe(plumber())
-        .pipe(htmlmin(firesparkConfig.src.html.config))
-        .pipe(gulp.dest(targetFolder))
-})
+        .pipe(htmlmin(config.src.html.config))
+        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.html.output)))
+});
 
-// Javascript
-gulp.task("javascript", function() {
-    return gulp.src(firesparkConfig.src.js.input)
+// Javascript clientside
+gulp.task("javascript-client", function() {
+    return gulp.src(config.src.js.input)
         .pipe(plumber())
         .pipe(named())
-        .pipe(webpackStream(webpackConfig, webpack))
-        .pipe(gulp.dest(targetFolder))
-})
+        .pipe(webpackStream(config.src.js.webpack, webpack))
+        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.js.output)))
+});
 
-// Sass
+// Javascript server
+gulp.task("javascript-lib", function() {
+    return gulp.src(config.src.lib.input)
+        .pipe(plumber())
+        .pipe(named())
+        .pipe(webpackStream(config.src.lib.webpack, webpack))
+        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.lib.output)))
+});
+
+// SASS
 gulp.task('sass', function () {
-    return gulp.src(firesparkConfig.src.sass.input)
+    return gulp.src(config.src.sass.input)
         .pipe(plumber())
         .pipe(sourcemaps.init())
         .pipe(sass().on('error', sass.logError))
         .pipe(sourcemaps.write('./maps'))
-        .pipe(gulp.dest(targetFolder + '/css'))
-})
+        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.sass.output)))
+});
 
-gulp.task('watch', function() {
-    gulp.watch(firesparkConfig.src.js.watch, ['javascript'])
-    gulp.watch(firesparkConfig.src.html.watch, ['html'])
-    gulp.watch(firesparkConfig.src.sass.watch, ['sass'])
-    gulp.watch(firesparkConfig.static.input + "/**/*", ['static'])
-    
-    liveServer.start({
-        port: 8080, // Set the server port. Defaults to 8080. 
-        root: "build", // Set root directory that's being served. Defaults to cwd. 
-        open: true,
+// Watch task
+gulp.task('watch', function(done) {
+    gulp.watch(config.src.js.watch, ['javascript-client']);
+    gulp.watch(config.src.lib.watch, ['javascript-lib']);
+    gulp.watch(config.src.html.watch, ['html']);
+    gulp.watch(config.src.sass.watch, ['sass']);
+    gulp.watch(config.static.input + "/**/*", ['static']);
+
+    // Dev proxy server
+    const app = express();
+
+    app.use('/', proxy('localhost:9090/'));
+    app.use((req, res) => {
+        res.send("Server not started!");
     })
-})
 
+    app.listen(8080, () => {
+        console.log("Proxy server started on port 8080");
+    });
+
+    nodemon({
+        script: path.join(__dirname, 'build', config.src.lib.runpath),
+        args: [ '9090' ],
+        ext: 'js',
+        env: { 'NODE_PATH': path.join(__dirname, 'build') },
+        done,
+    });
+});
+
+// DEV
+gulp.task('dev', ['setDev', 'javascript-lib', 'javascript-client', 'html', 'sass', 'static', 'watch']);
 gulp.task('setDev', function() {
-    targetFolder = firesparkConfig.output.build
-    webpackConfig = webpackConfigGenerator(false)
-})
+    config = configGen(false);
+    targetFolder = config.output.build;
+});
 
-gulp.task('dev', ['setDev', 'javascript', 'html', 'sass', 'static', 'watch'])
-
+// PROD
+gulp.task('prod', ['setProd', 'static', 'html', 'javascript-lib', 'javascript-client','sass']);
 gulp.task('setProd', function() {
-    targetFolder = firesparkConfig.output.distribution
-    webpackConfig = webpackConfigGenerator(true)
-})
+    config = configGen(true);
+    targetFolder = config.output.distribution;
+});
 
-gulp.task('prod', ['setProd', 'static', 'html', 'javascript', 'sass'])
 
 // Default task
-gulp.task('default', ['dev'])
-
-function parseConfig() {
-    let file = fs.readFileSync(".firespark", { encoding: "UTF-8" }) || ""
-    return JSON5.parse(file)
-}
+gulp.task('default', ['dev']);
