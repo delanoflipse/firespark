@@ -1,5 +1,4 @@
 const webpack = require("webpack");
-// const path = require("path");
 
 module.exports = (production) => ({
     // static files
@@ -97,19 +96,8 @@ function genWebpackConfig(target, production) {
         },
 
         devtool: production ? 'source-map' : 'cheap-module-source-map',
-    
+        mode: production ? 'production' : 'development',
         plugins: [],
-    }
-        
-    if (production) {
-        config.plugins.push(
-            new webpack.optimize.UglifyJsPlugin({
-                sourceMap: true,
-                compress: {
-                    warnings: false
-                }
-            }),
-        );
     }
 
     return config;
