@@ -1,12 +1,12 @@
 // Requirements
 const path = require("path");
 const fs = require('fs');
-
+const rmrf = require('rimraf');
 const nodemon = require('gulp-nodemon');
 const proxy = require('express-http-proxy');
 const gulp = require('gulp');
 const express = require('express');
-const sass = require('gulp-sass');
+const stylus = require('gulp-stylus');
 const plumber = require("gulp-plumber");
 const htmlmin = require("gulp-htmlmin");
 const sourcemaps = require('gulp-sourcemaps');
@@ -20,6 +20,7 @@ let config = {};
 
 // Track target folder
 let targetFolder = 'build';
+let devMode = true;
 
 // STATIC
 gulp.task('static', function () {
@@ -66,14 +67,18 @@ gulp.task("javascript-lib", function() {
         .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.lib.output)))
 });
 
-// SASS
-gulp.task('sass', function () {
-    return gulp.src(config.src.sass.input)
+// CSS
+gulp.task('css', function () {
+    return gulp.src(config.src.css.input)
         .pipe(plumber())
         .pipe(sourcemaps.init())
-        .pipe(sass().on('error', sass.logError))
-        .pipe(sourcemaps.write('./maps'))
-        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.sass.output)))
+        // .pipe(sass().on('error', sass.logError))
+        .pipe(sourcemaps.init())
+        .pipe(stylus({
+            compress: !devMode,
+        }))
+        .pipe(sourcemaps.write())
+        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.css.output)))
 });
 
 // Watch task
@@ -81,7 +86,7 @@ gulp.task('watch', function(done) {
     gulp.watch(config.src.js.watch, gulp.series('javascript-client'));
     gulp.watch(config.src.lib.watch, gulp.series('javascript-lib'));
     gulp.watch(config.src.html.watch, gulp.series('html'));
-    gulp.watch(config.src.sass.watch, gulp.series('sass'));
+    gulp.watch(config.src.css.watch, gulp.series('css'));
     gulp.watch(config.static.input + "/**/*", gulp.series('static'));
 
     // Dev proxy server
@@ -121,18 +126,20 @@ gulp.task('generatePackageJSON', (cb) => {
 // DEV
 gulp.task('setDev', (cb) => {
     config = configGen(false);
+    devMode = true;
     targetFolder = config.output.build;
     cb();
 });
-gulp.task('dev', gulp.series('setDev', gulp.parallel('static', 'html', 'javascript-client', 'sass'), 'javascript-lib', 'watch'));
+gulp.task('dev', gulp.series('setDev', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'watch'));
 
 // PROD
 gulp.task('setProd', (cb) => {
     config = configGen(true);
+    devMode = false;
     targetFolder = config.output.distribution;
-    cb();
+    rmrf('dist', cb);
 });
-gulp.task('prod', gulp.series('setProd', gulp.parallel('static', 'html', 'javascript-client', 'sass'), 'javascript-lib', 'generatePackageJSON'));
+gulp.task('prod', gulp.series('setProd', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'generatePackageJSON'));
 
 // Default task
 gulp.task('default', gulp.series('dev'));

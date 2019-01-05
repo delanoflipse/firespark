@@ -34,14 +34,14 @@ module.exports = (production) => ({
             webpack: genWebpackConfig('node', production),
         },
         
-        // client side SASS
-        sass: {
+        // client side STYLUS
+        css: {
             input: [
-                "./src/sass/index.scss",
+                "./src/css/index.styl",
             ],
             output: "/frontend/css",
             watch: [
-                "./src/**/*.scss"
+                "./src/**/*.styl"
             ],
         },
 
