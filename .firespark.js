@@ -1,10 +1,13 @@
 const webpack = require("webpack");
 
+const staticOutput = '/frontend';
+const frontendOutput = '/frontend';
+
 module.exports = (production) => ({
     // static files
     static: {
         input: "static",
-        output: "/frontend",
+        output: staticOutput,
     },
 
     // source files
@@ -14,7 +17,7 @@ module.exports = (production) => ({
             input: [
                 "./src/js/index.js"
             ],
-            output: "/frontend/js",
+            output: `${frontendOutput}/js`,
             watch: [
                 "./src/js/*.js",
                 "./src/js/*.json",
@@ -39,7 +42,7 @@ module.exports = (production) => ({
             input: [
                 "./src/css/index.styl",
             ],
-            output: "/frontend/css",
+            output: `${frontendOutput}/css`,
             watch: [
                 "./src/**/*.styl"
             ],
@@ -50,7 +53,7 @@ module.exports = (production) => ({
             input: [
                 "./src/*.html",
             ],
-            output: "/frontend/",
+            output: `${frontendOutput}/`,
             watch: [
                 "./src/**/*.html",
             ],

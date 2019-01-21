@@ -2,17 +2,22 @@
 const path = require("path");
 const fs = require('fs');
 const rmrf = require('rimraf');
-const nodemon = require('gulp-nodemon');
-const proxy = require('express-http-proxy');
-const gulp = require('gulp');
+
 const express = require('express');
+const proxy = require('express-http-proxy');
+
+const gulp = require('gulp');
 const stylus = require('gulp-stylus');
 const plumber = require("gulp-plumber");
 const htmlmin = require("gulp-htmlmin");
 const sourcemaps = require('gulp-sourcemaps');
+const nodemon = require('gulp-nodemon');
 const named = require('vinyl-named');
+
 const webpack = require("webpack-stream");
 const webpack2 = require('webpack');
+
+const liveServer = require('live-server');
 
 // Config generator
 const configGen = require('./.firespark');
@@ -23,13 +28,17 @@ let targetFolder = 'build';
 let devMode = true;
 
 // STATIC
-gulp.task('static', function () {
+gulp.task('static', function (cb) {
+    if (!config.static) return cb();
+
     return gulp.src(config.static.input + "/**/*")
         .pipe(gulp.dest(targetFolder + "/" + config.static.output))
 });
 
 // HTML
-gulp.task('html', function () {
+gulp.task('html', function (cb) {
+    if (!config.src || !config.src.html) return cb();
+
     return gulp.src(config.src.html.input)
         .pipe(plumber())
         .pipe(htmlmin(config.src.html.config))
@@ -37,7 +46,9 @@ gulp.task('html', function () {
 });
 
 // Javascript clientside
-gulp.task("javascript-client", function () {
+gulp.task("javascript-client", function (cb) {
+    if (!config.src || !config.src.js) return cb();
+
     return gulp.src(config.src.js.input)
         .pipe(plumber())
         .pipe(named())
@@ -47,7 +58,9 @@ gulp.task("javascript-client", function () {
 });
 
 // Javascript server
-gulp.task("javascript-lib", function() {
+gulp.task("javascript-lib", function(cb) {
+    if (!config.src || !config.src.lib) return cb();
+
     const nodeModules = {};
 
     fs.readdirSync('node_modules')
@@ -68,7 +81,9 @@ gulp.task("javascript-lib", function() {
 });
 
 // CSS
-gulp.task('css', function () {
+gulp.task('css', function(cb) {
+    if (!config.src || !config.src.css) return cb();
+
     return gulp.src(config.src.css.input)
         .pipe(plumber())
         .pipe(sourcemaps.init())
@@ -82,13 +97,44 @@ gulp.task('css', function () {
 });
 
 // Watch task
-gulp.task('watch', function(done) {
-    gulp.watch(config.src.js.watch, gulp.series('javascript-client'));
-    gulp.watch(config.src.lib.watch, gulp.series('javascript-lib'));
-    gulp.watch(config.src.html.watch, gulp.series('html'));
-    gulp.watch(config.src.css.watch, gulp.series('css'));
-    gulp.watch(config.static.input + "/**/*", gulp.series('static'));
+gulp.task('watch-js-client', function(cb) {
+    if (!config.src || !config.src.js) return cb();
 
+    gulp.watch(config.src.js.watch, gulp.series('javascript-client'));
+    cb();
+});
+
+gulp.task('watch-js-lib', function(cb) {
+    if (!config.src || !config.src.lib) return cb();
+
+    gulp.watch(config.src.lib.watch, gulp.series('javascript-lib'));
+    cb();
+});
+
+gulp.task('watch-html', function(cb) {
+    if (!config.src || !config.src.html) return cb();
+
+    gulp.watch(config.src.html.watch, gulp.series('html'));
+    cb();
+});
+
+gulp.task('watch-css', function(cb) {
+    if (!config.src || !config.src.css) return cb();
+
+    gulp.watch(config.src.css.watch, gulp.series('css'));
+    cb();
+});
+
+gulp.task('watch-static', function(cb) {
+    if (!config.static) return cb();
+
+    gulp.watch(config.static.input + "/**/*", gulp.series('static'));
+    cb();
+});
+
+gulp.task('watch-lib-server', function(done) {
+    if (!config.src || !config.src.lib) return done();
+    console.log("Setting up nodemon for custom server...");
     // Dev proxy server
     const app = express();
 
@@ -111,6 +157,22 @@ gulp.task('watch', function(done) {
     });
 });
 
+gulp.task('watch-live-server', function(done) {
+    if (config.src && config.src.lib) return done();
+    console.log("Setting up live server for web development...");
+
+    // Dev live server
+    liveServer.start({
+        port: 8080, // Set the server port. Defaults to 8080. 
+        root: "build", // Set root directory that's being served. Defaults to cwd. 
+        open: true,
+        wait: 100,
+    });
+    done();
+});
+
+gulp.task('watch', gulp.parallel('watch-js-client', 'watch-js-lib', 'watch-html', 'watch-css', 'watch-static', 'watch-lib-server', 'watch-live-server'));
+
 gulp.task('generatePackageJSON', (cb) => {
     const content = fs.readFileSync('package.json');
     const json = JSON.parse(content);
@@ -128,7 +190,7 @@ gulp.task('setDev', (cb) => {
     config = configGen(false);
     devMode = true;
     targetFolder = config.output.build;
-    cb();
+    rmrf(config.output.build, cb);
 });
 gulp.task('dev', gulp.series('setDev', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'watch'));
 
@@ -137,8 +199,9 @@ gulp.task('setProd', (cb) => {
     config = configGen(true);
     devMode = false;
     targetFolder = config.output.distribution;
-    rmrf('dist', cb);
+    rmrf(config.output.distribution, cb);
 });
+
 gulp.task('prod', gulp.series('setProd', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'generatePackageJSON'));
 
 // Default task
