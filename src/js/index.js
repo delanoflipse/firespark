@@ -1,3 +1,3 @@
-// import $ from "jquery"
+// import x from y;
 
-console.log("Hello World!");
+console.log('Hello World!');

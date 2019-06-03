@@ -1,0 +1,12 @@
+{
+	"editor.formatOnSave": true,
+	"eslint.autoFixOnSave": true,
+	"prettier.eslintIntegration": true,
+	"prettier.requireConfig": false,
+	"prettier.singleQuote": true,
+	"prettier.trailingComma": "es5",
+	"prettier.useTabs": true,
+	"vetur.format.options.useTabs": true,
+	"html.format.wrapAttributes": "force",
+	"html.format.wrapLineLength": 40
+}

@@ -1,208 +1,225 @@
-// Requirements
-const path = require("path");
+// utilities
+const path = require('path');
 const fs = require('fs');
 const rmrf = require('rimraf');
 
-const express = require('express');
-const proxy = require('express-http-proxy');
-
 const gulp = require('gulp');
-const stylus = require('gulp-stylus');
-const plumber = require("gulp-plumber");
-const htmlmin = require("gulp-htmlmin");
+const plumber = require('gulp-plumber');
 const sourcemaps = require('gulp-sourcemaps');
-const nodemon = require('gulp-nodemon');
 const named = require('vinyl-named');
-
-const webpack = require("webpack-stream");
-const webpack2 = require('webpack');
-
-const liveServer = require('live-server');
+const install = require('gulp-install');
 
 // Config generator
-const configGen = require('./.firespark');
-let config = {};
+let config = require('./.firespark');
 
 // Track target folder
 let targetFolder = 'build';
 let devMode = true;
 
-// STATIC
-gulp.task('static', function (cb) {
-    if (!config.static) return cb();
+// set base dir
+global.DIRNAME = path.resolve(__dirname);
 
-    return gulp.src(config.static.input + "/**/*")
-        .pipe(gulp.dest(targetFolder + "/" + config.static.output))
-});
+// No-operation with callback
+const noop = cb => {
+	cb();
+};
 
-// HTML
-gulp.task('html', function (cb) {
-    if (!config.src || !config.src.html) return cb();
+// Module reference
+const toolkit = {
+	// keep set of references
+	dependencies: new Set(),
+	// keep list of modules
+	modules: [],
+	// setup base task
+	task: {
+		js: noop,
+		lib: noop,
+		css: noop,
+		html: noop,
+		static: noop,
+		dev: noop,
+	},
+	// watch tasks
+	watch: [],
+};
 
-    return gulp.src(config.src.html.input)
-        .pipe(plumber())
-        .pipe(htmlmin(config.src.html.config))
-        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.html.output)))
-});
+// Default to these modules.
+const defaultModules = {
+	css: 'stylus',
+	dev: 'proxy',
+	html: 'html',
+	js: 'es6',
+	lib: 'es6',
+	static: 'static',
+};
 
-// Javascript clientside
-gulp.task("javascript-client", function (cb) {
-    if (!config.src || !config.src.js) return cb();
+// Create a new package.json, remove all unnecesairy dependencies after building
+function genPackageJSON(cb) {
+	const content = fs.readFileSync('package.json');
+	const json = JSON.parse(content);
+	delete json.optionalDependencies;
+	delete json.devDependencies;
 
-    return gulp.src(config.src.js.input)
-        .pipe(plumber())
-        .pipe(named())
-        .pipe(webpack(config.src.js.webpack, webpack2))
-        .pipe(sourcemaps.init({loadMaps: true}))
-        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.js.output)))
-});
+	json.scripts = {
+		start: 'node index',
+	};
 
-// Javascript server
-gulp.task("javascript-lib", function(cb) {
-    if (!config.src || !config.src.lib) return cb();
+	json.main = 'index.js';
 
-    const nodeModules = {};
+	fs.writeFile(
+		path.join(DIRNAME, targetFolder, 'package.json'),
+		JSON.stringify(json, null, 4),
+		cb
+	);
+}
 
-    fs.readdirSync('node_modules')
-    .filter(function(x) {
-        return ['.bin'].indexOf(x) === -1;
-    })
-    .forEach(function(mod) {
-        nodeModules[mod] = 'commonjs ' + mod;
-    });
-    
-    config.src.lib.webpack.externals = nodeModules;
-    return gulp.src(config.src.lib.input)
-        .pipe(plumber())
-        .pipe(named())
-        .pipe(webpack(config.src.lib.webpack, webpack2))
-        .pipe(sourcemaps.init({loadMaps: true}))
-        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.lib.output)))
-});
+// update the project package.json based on modules
+function updatePackage(cb) {
+	const content = fs.readFileSync('package.json');
+	const json = JSON.parse(content);
 
-// CSS
-gulp.task('css', function(cb) {
-    if (!config.src || !config.src.css) return cb();
+	json.optionalDependencies = {};
+	Array.from(toolkit.dependencies).forEach(
+		x => (json.optionalDependencies[x] = 'latest')
+	);
 
-    return gulp.src(config.src.css.input)
-        .pipe(plumber())
-        .pipe(sourcemaps.init())
-        // .pipe(sass().on('error', sass.logError))
-        .pipe(sourcemaps.init())
-        .pipe(stylus({
-            compress: !devMode,
-        }))
-        .pipe(sourcemaps.write())
-        .pipe(gulp.dest(path.join(__dirname, targetFolder, config.src.css.output)))
-});
+	fs.writeFile(
+		path.join(DIRNAME, 'package.json'),
+		JSON.stringify(json, null, 4),
+		cb
+	);
+}
 
-// Watch task
-gulp.task('watch-js-client', function(cb) {
-    if (!config.src || !config.src.js) return cb();
+// install dependencies
+function installDepedencies() {
+	return gulp.src(['./package.json']).pipe(install());
+}
 
-    gulp.watch(config.src.js.watch, gulp.series('javascript-client'));
-    cb();
-});
+// add a module to the build project
+function addModule(module, key, config, conf = {}) {
+	module.ctx = {
+		gulp,
+		config,
+		plumber,
+		named,
+		sourcemaps,
+		devMode,
+		targetFolder,
+	};
 
-gulp.task('watch-js-lib', function(cb) {
-    if (!config.src || !config.src.lib) return cb();
+	// add task
+	if (typeof module.task === 'function') {
+		toolkit.task[key] = module.task.bind(module);
+	}
 
-    gulp.watch(config.src.lib.watch, gulp.series('javascript-lib'));
-    cb();
-});
+	// add watch task
+	if (typeof module.watch === 'function') {
+		toolkit.watch.push(module.watch.bind(module));
+	} else if (conf.watch && typeof module.task === 'function') {
+		// generate watch task if information is complete
+		const str = `watch-${key}`;
+		const x = {
+			[str]: function(cb) {
+				gulp.watch(conf.watch, gulp.series(module.task.bind(module)));
+				cb();
+			},
+		};
 
-gulp.task('watch-html', function(cb) {
-    if (!config.src || !config.src.html) return cb();
+		toolkit.watch.push(x[str]);
+	}
 
-    gulp.watch(config.src.html.watch, gulp.series('html'));
-    cb();
-});
+	// add dependencies
+	if (Array.isArray(module.dependencies)) {
+		module.dependencies.forEach(x => toolkit.dependencies.add(x));
+	}
 
-gulp.task('watch-css', function(cb) {
-    if (!config.src || !config.src.css) return cb();
+	// keep reference
+	toolkit.modules.push(module);
+}
 
-    gulp.watch(config.src.css.watch, gulp.series('css'));
-    cb();
-});
+// call all init functions (used for dynamic imports)
+function initModules(cb) {
+	toolkit.modules.forEach(module => {
+		if (typeof module.init === 'function') {
+			module.init.bind(module)({ config, production: !devMode });
+		}
+	});
 
-gulp.task('watch-static', function(cb) {
-    if (!config.static) return cb();
+	cb();
+}
 
-    gulp.watch(config.static.input + "/**/*", gulp.series('static'));
-    cb();
-});
+// add all modules based on config
+function parseConfig() {
+	for (const key in config.input) {
+		const conf = config.input[key];
+		let modname = (conf.module = defaultModules[key]);
+		const module = require(`./modules/${key}/${modname}.js`);
 
-gulp.task('watch-lib-server', function(done) {
-    if (!config.src || !config.src.lib) return done();
-    console.log("Setting up nodemon for custom server...");
-    // Dev proxy server
-    const app = express();
+		addModule(module, key, config, conf);
+	}
 
-    app.use('/', proxy('localhost:9090/'));
-    app.use((_, res) => {
-        res.send("Server not started!");
-    })
+	if (devMode) {
+		const devmodus = config.input && config.input.lib ? 'proxy' : 'live';
+		const module = require(`./modules/dev/${devmodus}.js`);
+		addModule(module, 'dev', config);
+	}
+}
 
-    app.listen(8080, () => {
-        console.log("Proxy server started on port 8080");
-    });
+// create a pipeline
+function defaultPipeline(cb) {
+	const pipeline = [
+		initModules,
+		gulp.parallel(
+			toolkit.task.static,
+			toolkit.task.html,
+			toolkit.task.js,
+			toolkit.task.css
+		),
+		toolkit.task.lib,
+	];
 
-    nodemon({
-        script: path.join(__dirname, 'build', config.src.lib.runpath),
-        args: [ '9090' ],
-        ext: 'js',
-        env: { 'NODE_PATH': path.join(__dirname, 'build') },
-        watch: [ config.src.lib.runpath ],
-        done,
-    });
-});
+	if (devMode) {
+		pipeline.push(gulp.parallel(...toolkit.watch));
+	}
 
-gulp.task('watch-live-server', function(done) {
-    if (config.src && config.src.lib) return done();
-    console.log("Setting up live server for web development...");
+	if (!devMode) {
+		pipeline.push(genPackageJSON);
+	}
 
-    // Dev live server
-    liveServer.start({
-        port: 8080, // Set the server port. Defaults to 8080. 
-        root: "build", // Set root directory that's being served. Defaults to cwd. 
-        open: true,
-        wait: 100,
-    });
-    done();
-});
+	gulp.series(...pipeline)();
+	cb();
+}
 
-gulp.task('watch', gulp.parallel('watch-js-client', 'watch-js-lib', 'watch-html', 'watch-css', 'watch-static', 'watch-lib-server', 'watch-live-server'));
+// DEV Pipeline
+const dev = gulp.series(devSetup, defaultPipeline);
+function devSetup(cb) {
+	devMode = true;
+	targetFolder = config.output.build;
+	parseConfig(config);
+	cb();
+}
 
-gulp.task('generatePackageJSON', (cb) => {
-    const content = fs.readFileSync('package.json');
-    const json = JSON.parse(content);
-    json.devDependencies = {};
-    json.scripts = {
-        'start': "node index",
-    };
-    json.main = 'index.js';
+// PROD Pipeline
+const prod = gulp.series(prodSetup, defaultPipeline);
+function prodSetup(cb) {
+	devMode = false;
+	targetFolder = config.output.distribution;
+	parseConfig(config);
+	rmrf(config.output.distribution, cb);
+}
 
-    fs.writeFile(path.join(__dirname, targetFolder, 'package.json'), JSON.stringify(json, null, 4), cb);
-})
+// Dependency management
+function installDep(cb) {
+	devMode = true;
+	targetFolder = config.output.build;
+	parseConfig(config);
 
-// DEV
-gulp.task('setDev', (cb) => {
-    config = configGen(false);
-    devMode = true;
-    targetFolder = config.output.build;
-    rmrf(config.output.build, cb);
-});
-gulp.task('dev', gulp.series('setDev', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'watch'));
+	gulp.series(updatePackage, installDepedencies)();
+	cb();
+}
 
-// PROD
-gulp.task('setProd', (cb) => {
-    config = configGen(true);
-    devMode = false;
-    targetFolder = config.output.distribution;
-    rmrf(config.output.distribution, cb);
-});
-
-gulp.task('prod', gulp.series('setProd', gulp.parallel('static', 'html', 'javascript-client', 'css'), 'javascript-lib', 'generatePackageJSON'));
-
-// Default task
-gulp.task('default', gulp.series('dev'));
+// Export tasks
+exports.install = installDep;
+exports.default = dev;
+exports.dev = dev;
+exports.prod = prod;
