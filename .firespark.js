@@ -53,7 +53,7 @@ module.exports = {
 
 	// build & dist
 	output: {
-		build: 'build',
-		distribution: 'dist',
+		build: '.build',
+		distribution: '.dist',
 	},
 };
