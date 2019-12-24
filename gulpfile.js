@@ -153,14 +153,14 @@ function parseConfig() {
 	for (const key in config.input) {
 		const conf = config.input[key];
 		let modname = (conf.module = defaultModules[key]);
-		const module = require(`./modules/${key}/${modname}.js`);
+		const module = require(`./.modules/${key}/${modname}.js`);
 
 		addModule(module, key, config, conf);
 	}
 
 	if (devMode) {
 		const devmodus = config.input && config.input.lib ? 'proxy' : 'live';
-		const module = require(`./modules/dev/${devmodus}.js`);
+		const module = require(`./.modules/dev/${devmodus}.js`);
 		addModule(module, 'dev', config);
 	}
 }
@@ -196,7 +196,7 @@ function devSetup(cb) {
 	devMode = true;
 	targetFolder = config.output.build;
 	parseConfig(config);
-	cb();
+	rmrf(config.output.build, cb);
 }
 
 // PROD Pipeline

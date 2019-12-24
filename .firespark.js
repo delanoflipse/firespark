@@ -1,3 +1,8 @@
+// STATIC
+// const staticOutput = '/';
+// const frontendOutput = '/';
+
+// DYNAMIC
 const staticOutput = '/frontend';
 const frontendOutput = '/frontend';
 
