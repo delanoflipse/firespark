@@ -13,7 +13,7 @@ const install = require('gulp-install');
 let config = require('./.firespark');
 
 // Track target folder
-let targetFolder = 'build';
+let targetFolder = '.build';
 let devMode = true;
 
 // set base dir
