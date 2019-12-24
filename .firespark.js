@@ -41,7 +41,7 @@ module.exports = {
 		// static files
 		static: {
 			input: 'static',
-			watch: '/static/**/*',
+			watch: './static/**/*.*',
 			output: staticOutput,
 		},
 	},
