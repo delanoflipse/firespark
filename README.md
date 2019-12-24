@@ -1,5 +1,5 @@
 # Firespark
-Firespark is a static website creation setup using ES2016+, SASS, Webpack, Gulp and live-reload.
+Firespark is a frontend and optionally backend setup using ES2016+, Stylus, Webpack, Gulp and optionally live-reload.
 
 ## Features
 - Modern javascript(ES7)
@@ -16,7 +16,7 @@ $ npm install
 
 Use in development mode using
 ```sh
-$ npm start
+$ npm run dev
 ```
 
 Create a distribution version for production using
@@ -24,4 +24,4 @@ Create a distribution version for production using
 $ npm run build
 ```
 
-This (new) setup took big influences from [jefvlamings' boilerplate-gulp-webpack-es6](https://github.com/jefvlamings/boilerplate-gulp-webpack-es6)
+This setup took big influences from [jefvlamings' boilerplate-gulp-webpack-es6](https://github.com/jefvlamings/boilerplate-gulp-webpack-es6)
